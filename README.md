@@ -1,20 +1,19 @@
 # TEST
 
-テスト
+このリポジトリには、danbooru 形式のタグを用いて Stable Diffusion 向けプロンプトを生成するスクリプトが含まれています。
 
-This repository contains a simple script to help generate Stable Diffusion prompts using danbooru-style tags.
+## 使い方
 
-## Usage
+利用できるスクリプトは次の 2 つです。
 
-There are two scripts available:
+1. **danbooru_prompt_app.py** - 単純な単語やフレーズを置き換えるだけの変換ツール。
+2. **tag_converter.py** - `tags.json` を読み込み、spaCy で英文を解析してタグを抽出します。
 
-1. **danbooru_prompt_app.py** - A basic word/phrase matcher.
-2. **tag_converter.py** - A spaCy based converter that reads tags from `tags.json`.
-
-Run the new converter with a description of the desired image:
+### tag_converter.py の実行例
 
 ```bash
 python tag_converter.py "A happy girl with blue eyes and long hair"
 ```
 
-The script will output a comma-separated list of tags that can be used as a prompt for Stable Diffusion.
+実行すると、使用可能なタグがカンマ区切りで表示されます。
+事前に `pip install spacy` と `python -m spacy download en_core_web_sm` を実行して spaCy と英語モデルをインストールしてください。
