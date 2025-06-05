@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import json
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Tuple
+
+import ujson as json
 
 import spacy
 from langdetect import detect
@@ -44,31 +47,33 @@ NEGATIONS = {
 }
 
 
-def load_dicts(en_path: Path, ja_path: Path) -> Dict[str, TagEntry]:
+def load_dicts(en_path: Path, ja_path: Path) -> Tuple[Dict[Tuple[str, ...], TagEntry], int]:
     """JSON ファイルからタグ辞書を読み込み統合する。"""
 
-    def _load(path: Path) -> Dict[str, TagEntry]:
+    def _load(path: Path) -> Dict[Tuple[str, ...], TagEntry]:
         try:
             with path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
         except FileNotFoundError as e:
             raise SystemExit(f"辞書ファイルが見つかりません: {path}") from e
-        except json.JSONDecodeError as e:
+        except ValueError as e:
             raise SystemExit(f"{path} の JSON が不正です: {e}") from e
-        result: Dict[str, TagEntry] = {}
+        result: Dict[Tuple[str, ...], TagEntry] = {}
         for key, value in data.items():
             if not isinstance(value, dict) or "tag" not in value:
                 continue
-            result[key.lower()] = TagEntry(
+            tokens = tuple(key.lower().split())
+            result[tokens] = TagEntry(
                 tag=value["tag"],
                 category=value.get("category", "misc"),
             )
         return result
 
-    tags = {}
-    tags.update(_load(en_path))
-    tags.update(_load(ja_path))
-    return tags
+    mapping: Dict[Tuple[str, ...], TagEntry] = {}
+    mapping.update(_load(en_path))
+    mapping.update(_load(ja_path))
+    max_len = max((len(k) for k in mapping.keys()), default=1)
+    return mapping, max_len
 
 
 def detect_lang(text: str) -> str:
@@ -105,24 +110,28 @@ def tokenise(
 
 
 def extract_tags(
-    doc: spacy.tokens.Doc, lemmas: List[str], mapping: Dict[str, TagEntry]
+    lemmas: List[str], mapping: Dict[Tuple[str, ...], TagEntry], max_len: int
 ) -> List[TagEntry]:
-    """フレーズ優先でタグを抽出する。"""
+    """辞書を用いてタグを抽出する。"""
     used: set[int] = set()
     tags: List[TagEntry] = []
 
-    items = sorted(mapping.items(), key=lambda kv: len(kv[0].split()), reverse=True)
-    for phrase, info in items:
-        tokens = phrase.lower().split()
-        length = len(tokens)
-        for i in range(len(lemmas) - length + 1):
-            if any((i + j) in used for j in range(length)):
+    n = len(lemmas)
+    for i in range(n):
+        if i in used:
+            continue
+        for length in range(max_len, 0, -1):
+            if i + length > n:
                 continue
-            if lemmas[i : i + length] == tokens:
-                if i > 0 and lemmas[i - 1] in NEGATIONS:
-                    continue
-                tags.append(info)
-                used.update(range(i, i + length))
+            key = tuple(lemmas[i : i + length])
+            entry = mapping.get(key)
+            if entry is None:
+                continue
+            if i > 0 and lemmas[i - 1] in NEGATIONS:
+                continue
+            tags.append(entry)
+            used.update(range(i, i + length))
+            break
     return tags
 
 
@@ -153,7 +162,15 @@ def main() -> None:
     parser.add_argument(
         "--ja_dict", default="tags_ja.json", help="日本語タグ辞書へのパス"
     )
+    parser.add_argument("--update", action="store_true", help="辞書を再生成する")
     args = parser.parse_args()
+
+    if args.update:
+        try:
+            subprocess.run([sys.executable, "build_tag_dict.py"], check=True)
+        except Exception as e:
+            print(f"辞書更新に失敗しました: {e}", file=sys.stderr)
+            sys.exit(1)
 
     text = " ".join(args.caption) if args.caption else input("> ")
     lang = detect_lang(text) if args.lang == "auto" else args.lang
@@ -161,10 +178,10 @@ def main() -> None:
     nlp_en = load_model("en")
     nlp_ja = load_model("ja")
 
-    mapping = load_dicts(Path(args.en_dict), Path(args.ja_dict))
+    mapping, max_len = load_dicts(Path(args.en_dict), Path(args.ja_dict))
 
     doc, lemmas = tokenise(text, lang, nlp_en, nlp_ja)
-    tags = extract_tags(doc, lemmas, mapping)
+    tags = extract_tags(lemmas, mapping, max_len)
     ordered = order_tags(tags)
     print(", ".join(ordered))
 
