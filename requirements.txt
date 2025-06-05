@@ -1,0 +1,6 @@
+requests
+langdetect
+spacy>=3.7
+fugashi
+ujson
+nltk

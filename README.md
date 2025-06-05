@@ -1,36 +1,35 @@
-# タグ変換ツール
+# タグ自動生成・変換ツール
 
-`tag_converter.py` は英語または日本語のキャプションを Danbooru タグの一覧に変換します。
+Danbooru のタグは非常に数が多く、手作業で辞書を更新するのは大変です。本ツールは API から自動でタグ一覧を取得し、辞書を生成した上でキャプションからタグを抽出します。辞書更新の手間を大幅に削減することが目的です。
 
 ## インストール
 
-1. Python 3.9 以降を用意してください。
-2. 必要なパッケージをインストールします。
-   ```bash
-   pip install spacy langdetect
-   python -m spacy download en_core_web_sm
-   python -m spacy download ja_core_news_sm
-   ```
+```bash
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+sudo apt-get install mecab libmecab-dev mecab-ipadic-utf8
+```
+
+## 辞書の生成と更新
+
+`build_tag_dict.py` を実行すると最新のタグを取得して `tags_en.json` と `tags_ja.json` を生成します。`tag_converter.py --update` を使うと自動でこのスクリプトが呼び出され、辞書が再作成されます。
+
+```bash
+python build_tag_dict.py              # 手動で生成
+python tag_converter.py --update "a girl with blue eyes"  # 変換前に辞書更新
+```
 
 ## 使い方
 
-キャプションをコマンドライン引数で渡すか、指定しない場合は標準入力から入力します。
+キャプションを英語または日本語で入力すると、対応する Danbooru タグを出力します。言語は `--lang` で指定できますが、`auto` にすると自動判定されます。
 
 ```bash
-python tag_converter.py "A happy girl with long hair and blue eyes"
-python tag_converter.py --lang auto "笑顔の茶髪の女の子"
+python tag_converter.py "A happy girl with long hair"
+python tag_converter.py --lang ja "笑っている猫"
 ```
 
-実行すると、対応する Danbooru タグをカンマ区切りで表示します。
+## ライセンスと注意事項
 
-### 辞書の拡張
+- 本ツールは MIT ライセンスです。
+- Danbooru API は認証不要で利用できますが、過度なアクセスはレートリミットの対象となります。`build_tag_dict.py` は 0.3 秒待機しながら取得するため安全ですが、頻繁な実行は控えてください。
 
-タグの定義は `tags_en.json` と `tags_ja.json` にあります。各エントリは単語やフレーズ（小文字）を Danbooru タグと任意のカテゴリに対応させます。
-
-```json
-{
-  "long hair": {"tag": "long_hair", "category": "hair"}
-}
-```
-
-新しい単語やフレーズを認識させたい場合は、これらのファイルに追記してください。
