@@ -1,7 +1,7 @@
 import argparse
 import re
 
-# Mapping from words to danbooru tags
+# 単語から danbooru タグへのマッピング
 WORD_TAGS = {
     "girl": "1girl",
     "boy": "1boy",
@@ -22,7 +22,7 @@ WORD_TAGS = {
     "blushing": "blush",
 }
 
-# Mapping from multi-word phrases to danbooru tags
+# 複数語フレーズから danbooru タグへのマッピング
 PHRASE_TAGS = {
     "long hair": "long_hair",
     "short hair": "short_hair",
@@ -35,23 +35,23 @@ PHRASE_TAGS = {
 }
 
 def generate_prompt(text: str) -> str:
-    """Convert input text to a comma-separated list of danbooru tags."""
+    """入力テキストを danbooru タグのカンマ区切りリストに変換する"""
     text = text.lower()
     tags = []
 
-    # Detect phrases first
+    # 最初にフレーズを検出する
     for phrase, tag in PHRASE_TAGS.items():
         if phrase in text:
             tags.append(tag)
             text = text.replace(phrase, " ")
 
-    # Process single words
+    # 単語を処理する
     tokens = re.findall(r"\b\w+\b", text)
     for token in tokens:
         if token in WORD_TAGS:
             tags.append(WORD_TAGS[token])
 
-    # Remove duplicates while preserving order
+    # 順序を保ったまま重複を除去する
     seen = set()
     unique_tags = []
     for tag in tags:
@@ -63,14 +63,14 @@ def generate_prompt(text: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Convert text to danbooru tags for Stable Diffusion prompts")
-    parser.add_argument("text", nargs="*", help="Input description")
+    parser = argparse.ArgumentParser(description="Stable Diffusion 用の danbooru タグへ変換する")
+    parser.add_argument("text", nargs="*", help="入力する説明文")
     args = parser.parse_args()
 
     if args.text:
         input_text = " ".join(args.text)
     else:
-        input_text = input("Enter description: ")
+        input_text = input("説明文を入力してください: ")
 
     prompt = generate_prompt(input_text)
     print(prompt)
