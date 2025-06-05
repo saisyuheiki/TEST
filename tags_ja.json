@@ -1,0 +1,8 @@
+{
+  "女の子": {"tag": "1girl", "category": "count/people"},
+  "男の子": {"tag": "1boy", "category": "count/people"},
+  "長髪": {"tag": "long_hair", "category": "hair"},
+  "青い目": {"tag": "blue_eyes", "category": "eyes"},
+  "笑顔": {"tag": "smile", "category": "expression"},
+  "茶髪": {"tag": "brown_hair", "category": "hair"}
+}

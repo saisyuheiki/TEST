@@ -1,19 +1,36 @@
-# TEST
+# タグ変換ツール
 
-このリポジトリには、danbooru 形式のタグを用いて Stable Diffusion 向けプロンプトを生成するスクリプトが含まれています。
+`tag_converter.py` は英語または日本語のキャプションを Danbooru タグの一覧に変換します。
+
+## インストール
+
+1. Python 3.9 以降を用意してください。
+2. 必要なパッケージをインストールします。
+   ```bash
+   pip install spacy langdetect
+   python -m spacy download en_core_web_sm
+   python -m spacy download ja_core_news_sm
+   ```
 
 ## 使い方
 
-利用できるスクリプトは次の 2 つです。
-
-1. **danbooru_prompt_app.py** - 単純な単語やフレーズを置き換えるだけの変換ツール。
-2. **tag_converter.py** - `tags.json` を読み込み、spaCy で英文を解析してタグを抽出します。
-
-### tag_converter.py の実行例
+キャプションをコマンドライン引数で渡すか、指定しない場合は標準入力から入力します。
 
 ```bash
-python tag_converter.py "A happy girl with blue eyes and long hair"
+python tag_converter.py "A happy girl with long hair and blue eyes"
+python tag_converter.py --lang auto "笑顔の茶髪の女の子"
 ```
 
-実行すると、使用可能なタグがカンマ区切りで表示されます。
-事前に `pip install spacy` と `python -m spacy download en_core_web_sm` を実行して spaCy と英語モデルをインストールしてください。
+実行すると、対応する Danbooru タグをカンマ区切りで表示します。
+
+### 辞書の拡張
+
+タグの定義は `tags_en.json` と `tags_ja.json` にあります。各エントリは単語やフレーズ（小文字）を Danbooru タグと任意のカテゴリに対応させます。
+
+```json
+{
+  "long hair": {"tag": "long_hair", "category": "hair"}
+}
+```
+
+新しい単語やフレーズを認識させたい場合は、これらのファイルに追記してください。

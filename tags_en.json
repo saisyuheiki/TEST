@@ -1,0 +1,8 @@
+{
+  "girl": {"tag": "1girl", "category": "count/people"},
+  "boy": {"tag": "1boy", "category": "count/people"},
+  "long hair": {"tag": "long_hair", "category": "hair"},
+  "blue eyes": {"tag": "blue_eyes", "category": "eyes"},
+  "smile": {"tag": "smile", "category": "expression"},
+  "running": {"tag": "running", "category": "pose/action"}
+}
