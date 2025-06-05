@@ -1,116 +1,172 @@
+"""英語または日本語のキャプションを Danbooru タグへ変換する。"""
+
+from __future__ import annotations
+
 import argparse
 import json
-import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List
 
 import spacy
+from langdetect import detect
 
-# 英語モデルを読み込む
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    # モデルがインストールされていない場合
-    nlp = spacy.blank("en")
 
-NEGATIONS = {"no", "not", "without", "n't"}
+@dataclass
+class TagEntry:
+    tag: str
+    category: str = "misc"
 
-CATEGORIES_ORDER = [
-    "person",
+
+CATEGORY_ORDER: List[str] = [
+    "count/people",
+    "gender",
     "hair",
     "eyes",
-    "emotion",
-    "position",
+    "expression",
+    "pose/action",
     "clothing",
-    "accessory",
-    "object",
-    "animal",
-    "environment",
+    "background/setting",
     "misc",
 ]
 
-
-def load_tags(path: Path) -> Tuple[Dict[str, Dict[str, str]], Dict[str, Dict[str, str]]]:
-    """JSON ファイルからタグ辞書を読み込む"""
-    with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
-    return data.get("words", {}), data.get("phrases", {})
-
-
-def is_negated(token) -> bool:
-    """トークンが文中で否定されている場合 True を返す"""
-    if token.i > 0 and token.doc[token.i - 1].lower_ in NEGATIONS:
-        return True
-    # 否定表現の子要素や祖先を確認する
-    for child in token.children:
-        if child.dep_ == "neg" or child.lower_ in NEGATIONS:
-            return True
-    for ancestor in token.ancestors:
-        for child in ancestor.children:
-            if child.dep_ == "neg" or child.lower_ in NEGATIONS:
-                return True
-    return False
+NEGATIONS = {
+    "not",
+    "no",
+    "n't",
+    "never",
+    "ない",
+    "ぬ",
+    "ず",
+    "ません",
+    "じゃない",
+    "ではない",
+}
 
 
-def extract_tags(text: str, word_tags: Dict[str, Dict[str, str]], phrase_tags: Dict[str, Dict[str, str]]) -> List[Tuple[str, str]]:
-    text_lower = text.lower()
-    doc = nlp(text_lower)
-    tokens_lower = [t.text.lower() for t in doc]
-    used = set()
-    tags: List[Tuple[str, str]] = []
+def load_dicts(en_path: Path, ja_path: Path) -> Dict[str, TagEntry]:
+    """JSON ファイルからタグ辞書を読み込み統合する。"""
 
-    # フレーズは長いものから優先して処理する
-    phrases_sorted = sorted(phrase_tags.items(), key=lambda x: len(x[0].split()), reverse=True)
-    for phrase, info in phrases_sorted:
-        phrase_tokens = phrase.split()
-        length = len(phrase_tokens)
-        for i in range(len(doc) - length + 1):
+    def _load(path: Path) -> Dict[str, TagEntry]:
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError as e:
+            raise SystemExit(f"辞書ファイルが見つかりません: {path}") from e
+        except json.JSONDecodeError as e:
+            raise SystemExit(f"{path} の JSON が不正です: {e}") from e
+        result: Dict[str, TagEntry] = {}
+        for key, value in data.items():
+            if not isinstance(value, dict) or "tag" not in value:
+                continue
+            result[key.lower()] = TagEntry(
+                tag=value["tag"],
+                category=value.get("category", "misc"),
+            )
+        return result
+
+    tags = {}
+    tags.update(_load(en_path))
+    tags.update(_load(ja_path))
+    return tags
+
+
+def detect_lang(text: str) -> str:
+    """言語判定により 'en' または 'ja' を返す。"""
+    try:
+        code = detect(text)
+    except Exception:
+        return "en"
+    return "ja" if code.startswith("ja") else "en"
+
+
+def load_model(lang: str) -> spacy.language.Language:
+    """spaCy モデルを読み込む。"""
+    model_name = "en_core_web_sm" if lang == "en" else "ja_core_news_sm"
+    try:
+        return spacy.load(model_name)
+    except Exception as e:
+        raise SystemExit(
+            f"spaCy のモデル '{model_name}' が見つかりません。'python -m spacy download {model_name}' でインストールしてください。"
+        ) from e
+
+
+def tokenise(
+    text: str,
+    lang: str,
+    nlp_en: spacy.language.Language,
+    nlp_ja: spacy.language.Language,
+) -> tuple[spacy.tokens.Doc, List[str]]:
+    """テキストを解析して語形素を取得する。"""
+    nlp = nlp_en if lang == "en" else nlp_ja
+    doc = nlp(text)
+    lemmas = [tok.lemma_.lower() if tok.lemma_ else tok.text.lower() for tok in doc]
+    return doc, lemmas
+
+
+def extract_tags(
+    doc: spacy.tokens.Doc, lemmas: List[str], mapping: Dict[str, TagEntry]
+) -> List[TagEntry]:
+    """フレーズ優先でタグを抽出する。"""
+    used: set[int] = set()
+    tags: List[TagEntry] = []
+
+    items = sorted(mapping.items(), key=lambda kv: len(kv[0].split()), reverse=True)
+    for phrase, info in items:
+        tokens = phrase.lower().split()
+        length = len(tokens)
+        for i in range(len(lemmas) - length + 1):
             if any((i + j) in used for j in range(length)):
                 continue
-            if tokens_lower[i:i + length] == phrase_tokens:
-                if i > 0 and tokens_lower[i - 1] in NEGATIONS:
+            if lemmas[i : i + length] == tokens:
+                if i > 0 and lemmas[i - 1] in NEGATIONS:
                     continue
-                tags.append((info["tag"], info.get("category", "misc")))
-                for j in range(length):
-                    used.add(i + j)
+                tags.append(info)
+                used.update(range(i, i + length))
+    return tags
 
-    # 単語を処理する
-    for i, token in enumerate(doc):
-        if i in used:
-            continue
-        word = token.text.lower()
-        if word in word_tags and not is_negated(token):
-            info = word_tags[word]
-            tags.append((info["tag"], info.get("category", "misc")))
 
-    # 重複を除去する
-    seen = set()
-    unique_tags = []
-    for tag, cat in tags:
-        if tag not in seen:
-            seen.add(tag)
-            unique_tags.append((tag, cat))
+def order_tags(tags: Iterable[TagEntry]) -> List[str]:
+    """カテゴリを考慮してタグを並べ替える。"""
+    seen: set[str] = set()
+    unique: List[TagEntry] = []
+    for entry in tags:
+        if entry.tag not in seen:
+            seen.add(entry.tag)
+            unique.append(entry)
 
-    # カテゴリ順にソートする
-    unique_tags.sort(key=lambda x: CATEGORIES_ORDER.index(x[1]) if x[1] in CATEGORIES_ORDER else len(CATEGORIES_ORDER))
-    return unique_tags
+    priority = {cat: i for i, cat in enumerate(CATEGORY_ORDER)}
+    unique.sort(key=lambda t: priority.get(t.category, priority["misc"]))
+    return [t.tag for t in unique]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="自然文から danbooru タグを生成する")
-    parser.add_argument("text", nargs="*", help="入力する説明文")
-    parser.add_argument("--tags", default="tags.json", help="タグ定義 JSON のパス")
+    """コマンドライン引数を解析して処理を実行する。"""
+    parser = argparse.ArgumentParser(description="キャプションから Danbooru タグを生成")
+    parser.add_argument("caption", nargs="*", help="入力するキャプション")
+    parser.add_argument(
+        "--lang", choices=["en", "ja", "auto"], default="auto", help="入力言語"
+    )
+    parser.add_argument(
+        "--en_dict", default="tags_en.json", help="英語タグ辞書へのパス"
+    )
+    parser.add_argument(
+        "--ja_dict", default="tags_ja.json", help="日本語タグ辞書へのパス"
+    )
     args = parser.parse_args()
 
-    if args.text:
-        input_text = " ".join(args.text)
-    else:
-        input_text = input("説明文を入力してください: ")
+    text = " ".join(args.caption) if args.caption else input("> ")
+    lang = detect_lang(text) if args.lang == "auto" else args.lang
 
-    words, phrases = load_tags(Path(args.tags))
-    extracted = extract_tags(input_text, words, phrases)
-    output = ", ".join(tag for tag, _ in extracted)
-    print(output)
+    nlp_en = load_model("en")
+    nlp_ja = load_model("ja")
+
+    mapping = load_dicts(Path(args.en_dict), Path(args.ja_dict))
+
+    doc, lemmas = tokenise(text, lang, nlp_en, nlp_ja)
+    tags = extract_tags(doc, lemmas, mapping)
+    ordered = order_tags(tags)
+    print(", ".join(ordered))
 
 
 if __name__ == "__main__":
