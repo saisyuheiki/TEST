@@ -1,0 +1,31 @@
+{
+  "phrases": {
+    "long hair": {"tag": "long_hair", "category": "hair"},
+    "short hair": {"tag": "short_hair", "category": "hair"},
+    "blue eyes": {"tag": "blue_eyes", "category": "eyes"},
+    "red eyes": {"tag": "red_eyes", "category": "eyes"},
+    "green eyes": {"tag": "green_eyes", "category": "eyes"},
+    "black hair": {"tag": "black_hair", "category": "hair"},
+    "brown hair": {"tag": "brown_hair", "category": "hair"},
+    "blonde hair": {"tag": "blonde_hair", "category": "hair"}
+  },
+  "words": {
+    "girl": {"tag": "1girl", "category": "person"},
+    "boy": {"tag": "1boy", "category": "person"},
+    "smile": {"tag": "smile", "category": "emotion"},
+    "smiling": {"tag": "smile", "category": "emotion"},
+    "happy": {"tag": "smile", "category": "emotion"},
+    "weapon": {"tag": "weapon", "category": "object"},
+    "sword": {"tag": "sword", "category": "object"},
+    "gun": {"tag": "gun", "category": "object"},
+    "cat": {"tag": "cat", "category": "animal"},
+    "dog": {"tag": "dog", "category": "animal"},
+    "tree": {"tag": "tree", "category": "environment"},
+    "outdoor": {"tag": "outdoors", "category": "environment"},
+    "indoor": {"tag": "indoors", "category": "environment"},
+    "standing": {"tag": "standing", "category": "position"},
+    "sitting": {"tag": "sitting", "category": "position"},
+    "blush": {"tag": "blush", "category": "emotion"},
+    "blushing": {"tag": "blush", "category": "emotion"}
+  }
+}
